@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Simple runner script for BullBearArena backend."""
-
+"""BullBearArena backend runner."""
 import sys
 import os
 
+# Add backend dir to path BEFORE anything else
 backend_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, backend_dir)
 
-# Set PYTHONPATH so uvicorn's reload subprocess can find the package
+# Also patch subprocess environment
 os.environ["PYTHONPATH"] = backend_dir
-if backend_dir not in sys.path:
-    sys.path.insert(0, backend_dir)
+
+import uvicorn
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(
         "bullbeararena.api.app:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
+        reload=False,  # Disable reload to avoid subprocess import issues
     )

@@ -2,6 +2,16 @@
 BullBearArena — AI-powered stock analysis through legendary investor perspectives.
 """
 
+import sys
+import os
+
+# Ensure the package root's parent directory is in sys.path
+# This handles cases where uvicorn reload subprocess doesn't inherit PYTHONPATH
+_pkg_dir = os.path.dirname(os.path.abspath(__file__))
+_parent_dir = os.path.dirname(_pkg_dir)
+if _parent_dir not in sys.path:
+    sys.path.insert(0, _parent_dir)
+
 LATEST_10K = "10-K"
 LATEST_10Q = "10-Q"
 
