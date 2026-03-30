@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from app.report.generator import ArenaReport
-from app.data.metrics import FinancialSnapshot
+from .generator import ArenaReport
+from ..data.metrics import FinancialSnapshot
 
 
 def _format_number(val: float | int | None) -> str:

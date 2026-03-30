@@ -11,7 +11,7 @@ from rich.table import Table
 from rich.markdown import Markdown
 from rich import box
 
-from app import AGENT_DISPLAY, DEFAULT_AGENTS
+from . import AGENT_DISPLAY, DEFAULT_AGENTS
 
 app = typer.Typer(
     name="bullbeararena",
@@ -35,12 +35,12 @@ def analyze(
 
 async def _analyze(ticker: str, agents_str: Optional[str], provider: Optional[str],
                     model: Optional[str], output: Optional[str], json_out: bool):
-    from app.config import Config
-    from app.data.sec_client import SECEdgarClient
-    from app.data.metrics import compute_financials
-    from app.agents.orchestrator import run_all_agents
-    from app.report.generator import generate_report
-    from app.report.formatter import format_report_markdown
+    from .config import Config
+    from .data.sec_client import SECEdgarClient
+    from .data.metrics import compute_financials
+    from .agents.orchestrator import run_all_agents
+    from .report.generator import generate_report
+    from .report.formatter import format_report_markdown
 
     config = Config()
     if provider:
@@ -163,8 +163,8 @@ def lookup(ticker: str):
 
 
 async def _lookup(ticker: str):
-    from app.config import Config
-    from app.data.sec_client import SECEdgarClient
+    from .config import Config
+    from .data.sec_client import SECEdgarClient
 
     config = Config()
     client = SECEdgarClient(config)

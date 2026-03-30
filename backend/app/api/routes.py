@@ -5,11 +5,11 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.agents.orchestrator import run_all_agents
-from app.data.metrics import compute_financials
-from app.data.sec_client import SECEdgarClient
-from app.report.generator import generate_report
-from app.config import Config
+from ..agents.orchestrator import run_all_agents
+from ..data.metrics import compute_financials
+from ..data.sec_client import SECEdgarClient
+from ..report.generator import generate_report
+from ..config import Config
 
 router = APIRouter()
 
@@ -131,7 +131,7 @@ async def analyze_stock(request: AnalyzeRequest):
 @router.get("/agents")
 async def list_agents():
     """List all available investor agents."""
-    from app import AGENT_DISPLAY
+    from .. import AGENT_DISPLAY
     return {"agents": AGENT_DISPLAY}
 
 
