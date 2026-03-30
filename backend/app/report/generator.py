@@ -146,7 +146,7 @@ async def generate_report(
             messages=messages,
             temperature=0.5,
             api_key=config.llm_api_key or None,
-            api_base=config.llm_base_url or None,
+            api_base=config.effective_base_url,
         )
 
         content = response.choices[0].message.content.strip()

@@ -23,4 +23,4 @@ RATINGS = ["Strong Buy", "Buy", "Hold", "Sell", "Strong Sell"]
 # SEC EDGAR requires a User-Agent header
 SEC_USER_AGENT = "BullBearArena/0.1.0 (bullbeararena@example.com)"
 SEC_BASE_URL = "https://data.sec.gov"
-SEC_TICKERS_URL = "https://sec.gov/files/company_tickers.json"
+SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"

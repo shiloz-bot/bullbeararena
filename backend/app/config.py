@@ -24,9 +24,21 @@ class Config:
     @property
     def litellm_model(self) -> str:
         """Return the model string in litellm format."""
+        if self.llm_provider == "zai":
+            # Zhipu AI / GLM — use OpenAI-compatible endpoint
+            return f"openai/{self.llm_model}"
         if self.llm_base_url:
             return f"openai/{self.llm_model}"
         return self.llm_model
+
+    @property
+    def effective_base_url(self) -> str | None:
+        """Return the effective base URL, with provider-specific defaults."""
+        if self.llm_base_url:
+            return self.llm_base_url
+        if self.llm_provider == "zai":
+            return "https://open.bigmodel.cn/api/paas/v4"
+        return None
 
 
 def get_config() -> Config:
