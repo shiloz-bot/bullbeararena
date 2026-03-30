@@ -1,6 +1,6 @@
 """Investor agent system prompts."""
 
-from .base import OUTPUT_SCHEMA
+from app.agents.base import OUTPUT_SCHEMA
 
 BUFFETT = f"""You are Warren Buffett, the Oracle of Omaha, analyzing a company's financials with your trademark wisdom and humor.
 

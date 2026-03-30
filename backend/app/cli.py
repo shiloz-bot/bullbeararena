@@ -11,7 +11,7 @@ from rich.table import Table
 from rich.markdown import Markdown
 from rich import box
 
-from . import AGENT_DISPLAY, DEFAULT_AGENTS
+from app import AGENT_DISPLAY, DEFAULT_AGENTS
 
 app = typer.Typer(
     name="bullbeararena",

@@ -7,8 +7,8 @@ from typing import Any
 
 import litellm
 
-from ..agents.base import AgentVerdict, RATING_VALUES
-from ..config import Config
+from app.agents.base import AgentVerdict, RATING_VALUES
+from app.config import Config
 
 logger = logging.getLogger(__name__)
 
