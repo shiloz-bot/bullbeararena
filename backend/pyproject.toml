@@ -23,10 +23,10 @@ dev = [
 ]
 
 [project.scripts]
-bullbeararena = "app.cli:app"
+bullbeararena = "bullbeararena.cli:app"
 
 [tool.hatch.build.targets.wheel]
-packages = ["app"]
+packages = ["bullbeararena"]
 
 [build-system]
 requires = ["hatchling"]

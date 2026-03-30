@@ -3,9 +3,9 @@
 import asyncio
 from typing import Any
 
-from app.agents.base import AgentVerdict, run_agent
-from app.agents.prompts import AGENT_PROMPTS
-from app.config import Config
+from bullbeararena.agents.base import AgentVerdict, run_agent
+from bullbeararena.agents.prompts import AGENT_PROMPTS
+from bullbeararena.config import Config
 
 
 def format_financial_data(snapshot_dict: dict[str, Any]) -> str:

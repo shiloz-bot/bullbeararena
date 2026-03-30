@@ -7,7 +7,7 @@ from typing import Any
 
 import litellm
 
-from app.config import Config
+from bullbeararena.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ async def run_agent(
     Returns:
         AgentVerdict with structured analysis.
     """
-    from app import AGENT_DISPLAY
+    from bullbeararena import AGENT_DISPLAY
 
     config = config or Config()
     info = AGENT_DISPLAY[agent_id]
