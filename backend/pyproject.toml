@@ -25,6 +25,9 @@ dev = [
 [project.scripts]
 bullbeararena = "app.cli:app"
 
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
