@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -42,25 +42,115 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState<"en" | "zh">("en");
 
-  async function analyzeStock(ticker: string) {
+  // Real-time state
+  const [phase, setPhase] = useState<string>("");
+  const [phaseMessage, setPhaseMessage] = useState("");
+  const [companyInfo, setCompanyInfo] = useState<any>(null);
+  const [streamVerdicts, setStreamVerdicts] = useState<Map<string, { verdict?: AgentVerdict; loading: boolean }>>(new Map());
+  const [currentAgentId, setCurrentAgentId] = useState<string | null>(null);
+
+  const resetState = useCallback(() => {
     setLoading(true);
     setError(null);
     setResult(null);
+    setPhase("");
+    setPhaseMessage("");
+    setCompanyInfo(null);
+    setStreamVerdicts(new Map());
+    setCurrentAgentId(null);
+  }, []);
+
+  async function analyzeStock(ticker: string) {
+    resetState();
+
     try {
-      const res = await fetch(`${API_BASE}/api/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker, language }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Analysis failed");
-      setResult(data);
+      const url = `${API_BASE}/api/analyze/stream?ticker=${encodeURIComponent(ticker)}&language=${language}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || "Analysis failed");
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        let currentEvent = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ") && currentEvent) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              handleSSEEvent(currentEvent, data);
+            } catch {}
+            currentEvent = "";
+          }
+        }
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   }
+
+  function handleSSEEvent(event: string, data: any) {
+    switch (event) {
+      case "status":
+        setPhase(data.phase);
+        setPhaseMessage(data.message || "");
+        break;
+      case "company":
+        setCompanyInfo(data);
+        break;
+      case "metrics":
+        break;
+      case "agent_start":
+        setCurrentAgentId(data.agent_id);
+        setStreamVerdicts(prev => {
+          const next = new Map(prev);
+          next.set(data.agent_id, { loading: true });
+          return next;
+        });
+        break;
+      case "agent_complete":
+        setCurrentAgentId(null);
+        setStreamVerdicts(prev => {
+          const next = new Map(prev);
+          next.set(data.agent_id, { verdict: data.verdict, loading: false });
+          return next;
+        });
+        break;
+      case "agent_error":
+        setCurrentAgentId(null);
+        setStreamVerdicts(prev => {
+          const next = new Map(prev);
+          next.set(data.agent_id, { loading: false });
+          return next;
+        });
+        break;
+      case "complete":
+        setResult(data);
+        break;
+      case "error":
+        setError(data.message);
+        setLoading(false);
+        break;
+    }
+  }
+
+  const showStreaming = loading && !result;
 
   return (
     <main className="min-h-screen main-grid">
@@ -80,15 +170,11 @@ export default function Home() {
               <button
                 onClick={() => setLanguage("en")}
                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${language === "en" ? "bg-[var(--color-accent-indigo)] text-white" : "text-[var(--color-text-dim)] hover:text-white"}`}
-              >
-                EN
-              </button>
+              >EN</button>
               <button
                 onClick={() => setLanguage("zh")}
                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${language === "zh" ? "bg-[var(--color-accent-indigo)] text-white" : "text-[var(--color-text-dim)] hover:text-white"}`}
-              >
-                中文
-              </button>
+              >中文</button>
             </div>
           </div>
         </div>
@@ -111,20 +197,29 @@ export default function Home() {
           <p className="text-lg text-[var(--color-text-secondary)] mb-10 max-w-xl mx-auto">
             {language === "zh"
               ? "输入股票代码，5 位投资大师将用各自独特的视角为你深度分析，生成辩论式报告。"
-              : "Enter a ticker. 5 iconic investors analyze it from their unique perspectives. Get a debate-style report in seconds."
-            }
+              : "Enter a ticker. 5 iconic investors analyze it from their unique perspectives. Get a debate-style report in seconds."}
           </p>
           <SearchBar onAnalyze={analyzeStock} loading={loading} language={language} />
           {error && (
-            <div className="mt-6 p-4 bg-[var(--color-bear-dim)]/50 border border-[var(--color-bear)]/30 rounded-xl text-[var(--color-bear)] text-sm max-w-lg mx-auto">
-              {error}
-            </div>
+            <div className="mt-6 p-4 bg-[var(--color-bear-dim)]/50 border border-[var(--color-bear)]/30 rounded-xl text-[var(--color-bear)] text-sm max-w-lg mx-auto">{error}</div>
           )}
           <AgentPreview language={language} />
         </header>
       )}
 
-      {loading && <LoadingState language={language} />}
+      {/* Streaming View */}
+      {showStreaming && (
+        <StreamingView
+          phase={phase}
+          phaseMessage={phaseMessage}
+          companyInfo={companyInfo}
+          verdicts={streamVerdicts}
+          currentAgentId={currentAgentId}
+          language={language}
+        />
+      )}
+
+      {/* Final Result */}
       {result && (
         <>
           <div className="max-w-7xl mx-auto px-6 pt-6 pb-4">
@@ -143,36 +238,29 @@ function SearchBar({ onAnalyze, loading, language, compact }: { onAnalyze: (t: s
     const ticker = new FormData(e.currentTarget).get("ticker") as string;
     if (ticker?.trim()) onAnalyze(ticker.trim().toUpperCase());
   };
-
   return (
-    <form onSubmit={handleSubmit} className={`flex gap-2 max-w-md mx-auto ${compact ? "" : ""}`}>
+    <form onSubmit={handleSubmit} className="flex gap-2 max-w-md mx-auto">
       <input
-        type="text"
-        name="ticker"
+        type="text" name="ticker"
         placeholder={language === "zh" ? "输入股票代码（如 AAPL, TSLA）" : "Enter ticker (AAPL, TSLA, NVDA)"}
         disabled={loading}
         className="flex-1 px-4 py-3 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl text-white placeholder:text-[var(--color-text-dim)] focus:outline-none focus:border-[var(--color-accent-indigo)] focus:ring-1 focus:ring-[var(--color-accent-indigo)] text-sm disabled:opacity-50 font-mono"
       />
-      <button
-        type="submit"
-        disabled={loading}
+      <button type="submit" disabled={loading}
         className="px-5 py-3 bg-[var(--color-accent-indigo)] hover:bg-[var(--color-accent-blue)] disabled:opacity-50 text-white font-semibold rounded-xl transition-all text-sm"
       >
-        {loading
-          ? (language === "zh" ? "分析中..." : "Analyzing...")
-          : (language === "zh" ? "开始分析" : "Analyze")
-        }
+        {loading ? (language === "zh" ? "分析中..." : "Analyzing...") : (language === "zh" ? "开始分析" : "Analyze")}
       </button>
     </form>
   );
 }
 
 const AGENTS = [
-  { name: "Warren Buffett", emoji: "🤵", style: "Value Investing", color: "#3b82f6" },
-  { name: "Cathie Wood", emoji: "👩", style: "Disruptive Innovation", color: "#8b5cf6" },
-  { name: "Ray Dalio", emoji: "🧑", style: "Macro Cycle", color: "#06b6d4" },
-  { name: "Michael Burry", emoji: "🧐", style: "Deep Value", color: "#ef4444" },
-  { name: "Peter Lynch", emoji: "👨", style: "Pragmatic Growth", color: "#f59e0b" },
+  { id: "buffett", name: "Warren Buffett", emoji: "🤵", style: "Value Investing", color: "#3b82f6" },
+  { id: "wood", name: "Cathie Wood", emoji: "👩", style: "Disruptive Innovation", color: "#8b5cf6" },
+  { id: "dalio", name: "Ray Dalio", emoji: "🧑", style: "Macro Cycle", color: "#06b6d4" },
+  { id: "burry", name: "Michael Burry", emoji: "🧐", style: "Deep Value", color: "#ef4444" },
+  { id: "lynch", name: "Peter Lynch", emoji: "👨", style: "Pragmatic Growth", color: "#f59e0b" },
 ];
 
 function AgentPreview({ language }: { language: string }) {
@@ -183,7 +271,7 @@ function AgentPreview({ language }: { language: string }) {
       </p>
       <div className="flex flex-wrap justify-center gap-4">
         {AGENTS.map((a) => (
-          <div key={a.name} className="flex flex-col items-center gap-2 px-4 py-3 rounded-xl bg-[var(--color-bg-card)]/50 border border-[var(--color-border)]/50 min-w-[120px]">
+          <div key={a.id} className="flex flex-col items-center gap-2 px-4 py-3 rounded-xl bg-[var(--color-bg-card)]/50 border border-[var(--color-border)]/50 min-w-[120px]">
             <span className="text-3xl">{a.emoji}</span>
             <span className="text-xs font-medium text-[var(--color-text-primary)]">{a.name}</span>
             <span className="text-[10px] text-[var(--color-text-dim)]" style={{ color: a.color }}>{a.style}</span>
@@ -194,25 +282,105 @@ function AgentPreview({ language }: { language: string }) {
   );
 }
 
-function LoadingState({ language }: { language: string }) {
+function StreamingView({ phase, phaseMessage, companyInfo, verdicts, currentAgentId, language }: {
+  phase: string;
+  phaseMessage: string;
+  companyInfo: any;
+  verdicts: Map<string, { verdict?: AgentVerdict; loading: boolean }>;
+  currentAgentId: string | null;
+  language: string;
+}) {
   return (
-    <div className="max-w-2xl mx-auto px-6 py-32 text-center">
-      <div className="flex justify-center gap-2 mb-8">
-        {AGENTS.map((a, i) => (
-          <span key={a.name} className="text-3xl animate-bounce" style={{ animationDelay: `${i * 0.15}s` }}>
-            {a.emoji}
-          </span>
-        ))}
+    <div className="max-w-5xl mx-auto px-6 py-12">
+      {/* Company Header */}
+      {companyInfo && (
+        <div className="text-center mb-10 animate-fade-up">
+          <div className="text-xs text-[var(--color-text-dim)] uppercase tracking-widest mb-2">
+            {companyInfo.ticker} · {companyInfo.latest_filings?.[0]?.form || ""} {companyInfo.latest_filings?.[0]?.date || ""}
+          </div>
+          <h2 className="text-2xl font-bold">{companyInfo.company_name}</h2>
+        </div>
+      )}
+
+      {/* Agent Grid - Real Time */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {AGENTS.map((agent, idx) => {
+          const state = verdicts.get(agent.id);
+          const isActive = currentAgentId === agent.id;
+          const isDone = state?.verdict != null;
+          const v = state?.verdict;
+
+          return (
+            <div key={agent.id}
+              className={`animate-fade-up stagger-${idx + 1} rounded-2xl border transition-all duration-500 ${
+                isActive ? "border-[var(--color-accent-indigo)] glow-blue bg-[var(--color-bg-card)]" :
+                isDone ? "border-[var(--color-border)] bg-[var(--color-bg-card)]" :
+                "border-[var(--color-border)]/40 bg-[var(--color-bg-secondary)]/50"
+              }`}
+            >
+              <div className="p-4">
+                {/* Agent header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xl ${isActive ? "animate-bounce" : ""}`}>{agent.emoji}</span>
+                    <div>
+                      <div className="text-xs font-semibold">{agent.name}</div>
+                      <div className="text-[10px]" style={{ color: agent.color }}>{agent.style}</div>
+                    </div>
+                  </div>
+                  {isDone && v && (
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-md border ${
+                      v.rating.includes("Buy") ? "bg-[var(--color-bull-dim)] border-[var(--color-bull)]/30 text-[var(--color-bull)]" :
+                      v.rating.includes("Sell") ? "bg-[var(--color-bear-dim)] border-[var(--color-bear)]/30 text-[var(--color-bear)]" :
+                      "bg-[var(--color-neutral-dim)]/50 border-[var(--color-neutral)]/20 text-[var(--color-neutral)]"
+                    }`}>{v.rating}</span>
+                  )}
+                </div>
+
+                {/* Content */}
+                {isActive && !isDone && (
+                  <div className="flex items-center gap-2 text-xs text-[var(--color-accent-indigo)]">
+                    <div className="flex gap-1">
+                      <span className="w-1 h-1 rounded-full bg-[var(--color-accent-indigo)] animate-pulse" style={{ animationDelay: "0s" }} />
+                      <span className="w-1 h-1 rounded-full bg-[var(--color-accent-indigo)] animate-pulse" style={{ animationDelay: "0.2s" }} />
+                      <span className="w-1 h-1 rounded-full bg-[var(--color-accent-indigo)] animate-pulse" style={{ animationDelay: "0.4s" }} />
+                    </div>
+                    <span>{language === "zh" ? "正在分析..." : "Analyzing..."}</span>
+                  </div>
+                )}
+
+                {isDone && v && (
+                  <div>
+                    <p className="text-xs text-[var(--color-text-secondary)] italic leading-relaxed mb-2">&ldquo;{v.summary}&rdquo;</p>
+                    {v.bull_case.length > 0 && (
+                      <div className="space-y-1">
+                        {v.bull_case.slice(0, 2).map((p, i) => (
+                          <div key={i} className="text-[10px] text-[var(--color-text-dim)] flex items-start gap-1">
+                            <span className="text-[var(--color-bull)]">✅</span>
+                            <span className="line-clamp-2">{p}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!isActive && !isDone && !state?.loading && (
+                  <div className="text-[10px] text-[var(--color-text-dim)]">
+                    {language === "zh" ? "等待中" : "Waiting..."}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <h3 className="text-xl font-semibold text-[var(--color-accent-indigo)] mb-2">
-        {language === "zh" ? "竞技场辩论中" : "The Arena is in Session"}
-      </h3>
-      <p className="text-sm text-[var(--color-text-dim)]">
-        {language === "zh" ? "投资大师们正在审阅财报数据... 大约需要 15-30 秒" : "Investors are reviewing the financials... This takes about 15-30 seconds."}
-      </p>
-      <div className="mt-6 flex justify-center">
-        <div className="w-48 h-1 bg-[var(--color-bg-card)] rounded-full overflow-hidden">
-          <div className="h-full bg-[var(--color-accent-indigo)] rounded-full animate-pulse" style={{ width: "60%" }} />
+
+      {/* Phase Status */}
+      <div className="text-center">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] text-xs text-[var(--color-text-dim)]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent-indigo)] animate-pulse" />
+          {phaseMessage}
         </div>
       </div>
     </div>

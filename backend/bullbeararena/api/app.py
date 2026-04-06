@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from bullbeararena.api.routes import router
+from bullbeararena.api.stream import router as stream_router
 
 
 @asynccontextmanager
@@ -30,3 +31,4 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api")
+app.include_router(stream_router, prefix="/api")
