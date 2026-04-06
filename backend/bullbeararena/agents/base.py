@@ -94,13 +94,18 @@ async def run_agent(
     ]
 
     try:
-        response = await litellm.acompletion(
-            model=config.litellm_model,
-            messages=messages,
-            temperature=0.3,
-            api_key=config.llm_api_key or None,
-            api_base=config.effective_base_url,
-        )
+        # Build kwargs for litellm
+        kwargs = {
+            "model": config.litellm_model,
+            "messages": messages,
+            "temperature": 0.3,
+        }
+        if config.llm_api_key:
+            kwargs["api_key"] = config.llm_api_key
+        if config.effective_base_url:
+            kwargs["api_base"] = config.effective_base_url
+
+        response = await litellm.acompletion(**kwargs)
 
         content = response.choices[0].message.content.strip()
 

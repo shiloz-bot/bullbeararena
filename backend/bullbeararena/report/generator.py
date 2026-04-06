@@ -141,13 +141,17 @@ async def generate_report(
     ]
 
     try:
-        response = await litellm.acompletion(
-            model=config.litellm_model,
-            messages=messages,
-            temperature=0.5,
-            api_key=config.llm_api_key or None,
-            api_base=config.effective_base_url,
-        )
+        kwargs = {
+            "model": config.litellm_model,
+            "messages": messages,
+            "temperature": 0.5,
+        }
+        if config.llm_api_key:
+            kwargs["api_key"] = config.llm_api_key
+        if config.effective_base_url:
+            kwargs["api_base"] = config.effective_base_url
+
+        response = await litellm.acompletion(**kwargs)
 
         content = response.choices[0].message.content.strip()
         if "```json" in content:
