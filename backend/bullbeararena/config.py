@@ -37,7 +37,7 @@ class Config:
         if self.llm_base_url:
             return self.llm_base_url
         if self.llm_provider == "zai":
-            return "https://api.z.ai/api/paas/v4"
+            return "https://api.z.ai/api/coding/paas/v4"
         return None
 
 
