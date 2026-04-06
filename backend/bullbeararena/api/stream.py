@@ -68,7 +68,7 @@ async def _stream_analysis(ticker: str, language: str = "en", agent_ids: Optiona
 
     yield _sse("metrics", snapshot.to_dict())
 
-    # Phase 3: Running agents one by one
+    # Phase 3: Running agents IN PARALLEL, pushing results as they complete
     if agent_ids is None:
         agent_ids = list(AGENT_PROMPTS.keys())[:5]
 
@@ -76,18 +76,19 @@ async def _stream_analysis(ticker: str, language: str = "en", agent_ids: Optiona
     formatted_data = format_financial_data(snapshot.to_dict())
     lang_suffix = LANGUAGE_SUFFIX.get(language, "")
 
-    verdicts: list[AgentVerdict] = []
-
-    for agent_id in valid_ids:
-        info = AGENT_DISPLAY[agent_id]
+    # Notify all agents starting
+    for aid in valid_ids:
+        info = AGENT_DISPLAY[aid]
         yield _sse("agent_start", {
-            "agent_id": agent_id,
+            "agent_id": aid,
             "agent_name": info["name"],
             "emoji": info["emoji"],
             "style": info["style"],
             "message": f"{info['emoji']} {info['name']} is analyzing..." if language != "zh" else f"{info['emoji']} {info['name']} 正在分析...",
         })
 
+    # Create async tasks for all agents
+    async def _run_one(agent_id: str) -> tuple[str, AgentVerdict | None]:
         try:
             verdict = await run_agent(
                 agent_id,
@@ -95,18 +96,31 @@ async def _stream_analysis(ticker: str, language: str = "en", agent_ids: Optiona
                 formatted_data,
                 config,
             )
-            verdicts.append(verdict)
-
-            yield _sse("agent_complete", {
-                "agent_id": agent_id,
-                "verdict": verdict.to_dict(),
-            })
+            return (agent_id, verdict)
         except Exception as e:
             logger.error(f"Agent {agent_id} failed: {e}")
-            yield _sse("agent_error", {
-                "agent_id": agent_id,
-                "error": str(e)[:200],
-            })
+            return (agent_id, None)
+
+    tasks = {aid: asyncio.create_task(_run_one(aid)) for aid in valid_ids}
+    pending = set(tasks.values())
+    verdicts: list[AgentVerdict] = []
+
+    # Process results as they complete (first done = first pushed)
+    while pending:
+        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        for task in done:
+            agent_id, verdict = task.result()
+            if verdict:
+                verdicts.append(verdict)
+                yield _sse("agent_complete", {
+                    "agent_id": agent_id,
+                    "verdict": verdict.to_dict(),
+                })
+            else:
+                yield _sse("agent_error", {
+                    "agent_id": agent_id,
+                    "error": "Analysis failed",
+                })
 
     # Phase 4: Generating report
     yield _sse("status", {
