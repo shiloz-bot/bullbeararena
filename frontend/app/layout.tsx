@@ -3,19 +3,18 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "BullBearArena — AI Stock Analysis by Legendary Investors",
-  description: "Watch Warren Buffett, Cathie Wood, Ray Dalio, Michael Burry, and Peter Lynch debate any stock. AI-powered multi-perspective financial analysis.",
+  description: "Watch Warren Buffett, Cathie Wood, Ray Dalio, Michael Burry, and Peter Lynch debate any stock.",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen antialiased">
-        {children}
-      </body>
+    <html lang="en" className="dark">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+      </head>
+      <body className="min-h-screen antialiased">{children}</body>
     </html>
   );
 }

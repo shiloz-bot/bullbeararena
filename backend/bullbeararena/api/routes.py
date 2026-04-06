@@ -20,6 +20,7 @@ class AnalyzeRequest(BaseModel):
     agents: Optional[list[str]] = None  # Defaults to all 5
     llm_provider: Optional[str] = None
     llm_model: Optional[str] = None
+    language: Optional[str] = "en"  # "en" or "zh"
 
 
 class AnalyzeResponse(BaseModel):
@@ -88,6 +89,7 @@ async def analyze_stock(request: AnalyzeRequest):
             financial_data=snapshot.to_dict(),
             agent_ids=request.agents,
             config=config,
+            language=request.language or "en",
         )
 
         if not verdicts:
@@ -105,6 +107,7 @@ async def analyze_stock(request: AnalyzeRequest):
             latest_filing=latest_filing_str,
             verdicts=verdicts,
             config=config,
+            language=request.language or "en",
         )
 
         return AnalyzeResponse(

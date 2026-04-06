@@ -12,7 +12,7 @@ from bullbeararena.config import Config
 
 logger = logging.getLogger(__name__)
 
-REPORT_SYSTEM_PROMPT = """You are a financial moderator hosting a roundtable debate between legendary investors.
+REPORT_SYSTEM_PROMPT_EN = """You are a financial moderator hosting a roundtable debate between legendary investors.
 You have analysis from multiple investors, each with their own style and perspective.
 
 Generate a structured debate report in JSON format:
@@ -39,6 +39,34 @@ Rules:
 - Make the roundtable read like a real conversation
 
 Respond with ONLY valid JSON, no other text."""
+
+REPORT_SYSTEM_PROMPT_ZH = """你是一位金融主持人，正在主持一场传奇投资者之间的圆桌辩论。
+你有多位投资者的分析，每位都有自己独特的风格和视角。
+
+请生成一份结构化的辩论报告，格式为JSON：
+{
+    "title": "辩论的醒目标题",
+    "consensus": ["大多数投资者同意的观点"],
+    "debates": [
+        {
+            "topic": "辩论话题",
+            "positions": {"投资者姓名": "他们的立场"},
+            "verdict": "谁的论点最有说服力，为什么"
+        }
+    ],
+    "overall_score": 0-100,
+    "overall_sentiment": "非常看多 | 看多 | 中性 | 看空 | 非常看空",
+    "roundtable_summary": "3-5段的圆桌讨论叙事。使用投资者的名字并引用他们的具体观点。让它读起来像一场生动的辩论。包含他们分析中的直接引用。",
+    "final_recommendation": "一段话的最终建议"
+}
+
+规则：
+- overall_score: 0 = 全部强烈卖出, 50 = 全部持有, 100 = 全部强烈买入。按置信度加权。
+- 既要有趣又要有实质内容
+- 引用分析中的具体数字
+- 让圆桌讨论读起来像真实的对话
+
+只返回有效的JSON，不要有其他文字。"""
 
 
 @dataclass
@@ -105,6 +133,7 @@ async def generate_report(
     latest_filing: str,
     verdicts: list[AgentVerdict],
     config: Config | None = None,
+    language: str = "en",
 ) -> ArenaReport:
     """
     Generate the final arena report from agent verdicts.
@@ -136,7 +165,7 @@ async def generate_report(
         analyses_text += f"Summary: {v.summary}\n"
 
     messages = [
-        {"role": "system", "content": REPORT_SYSTEM_PROMPT},
+        {"role": "system", "content": REPORT_SYSTEM_PROMPT_ZH if language == "zh" else REPORT_SYSTEM_PROMPT_EN},
         {"role": "user", "content": f"Company: {company_name} ({ticker})\nLatest Filing: {latest_filing}\n\nAgent Analyses:{analyses_text}"},
     ]
 
