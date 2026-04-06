@@ -3,7 +3,7 @@ name = "bullbeararena"
 version = "0.1.0"
 description = "BullBearArena — AI-powered stock analysis through legendary investor perspectives"
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.34.0",

@@ -5,6 +5,7 @@ setup(
     name="bullbeararena",
     version="0.1.0",
     packages=find_packages(),
+    python_requires=">=3.9",
     install_requires=[
         "fastapi>=0.115.0",
         "uvicorn>=0.34.0",
