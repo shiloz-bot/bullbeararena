@@ -122,7 +122,7 @@ async def _stream_analysis(ticker: str, language: str = "en", agent_ids: Optiona
                     "error": "Analysis failed",
                 })
 
-    # Phase 4: Generating report
+    # Phase 4: Generating report (streaming)
     yield _sse("status", {
         "phase": "report",
         "message": "Generating debate report..." if language != "zh" else "生成辩论报告中...",
@@ -133,17 +133,24 @@ async def _stream_analysis(ticker: str, language: str = "en", agent_ids: Optiona
         f = financials["latest_filings"][0]
         filing_str = f"{f['form']} filed {f['date']}"
 
-    report = await generate_report(
+    # Stream the roundtable summary in real-time
+    from bullbeararena.report.generator import generate_report_streaming
+
+    report_chunks = []
+    async for chunk in generate_report_streaming(
         company_name=financials["company_name"],
         ticker=financials["ticker"],
         latest_filing=filing_str,
         verdicts=verdicts,
         config=config,
         language=language,
-    )
-
-    # Phase 5: Done
-    yield _sse("complete", report.to_dict())
+    ):
+        if chunk.get("type") == "roundtable_chunk":
+            report_chunks.append(chunk["text"])
+            yield _sse("report_chunk", {"text": chunk["text"]})
+        elif chunk.get("type") == "complete":
+            report = chunk["report"]
+            yield _sse("complete", report)
 
 
 @router.get("/analyze/stream")

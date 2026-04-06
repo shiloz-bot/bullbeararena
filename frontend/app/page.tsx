@@ -48,6 +48,8 @@ export default function Home() {
   const [companyInfo, setCompanyInfo] = useState<any>(null);
   const [streamVerdicts, setStreamVerdicts] = useState<Map<string, { verdict?: AgentVerdict; loading: boolean }>>(new Map());
   const [currentAgentId, setCurrentAgentId] = useState<string | null>(null);
+  const [roundtableText, setRoundtableText] = useState("");
+  const [showRoundtable, setShowRoundtable] = useState(false);
 
   const resetState = useCallback(() => {
     setLoading(true);
@@ -58,6 +60,8 @@ export default function Home() {
     setCompanyInfo(null);
     setStreamVerdicts(new Map());
     setCurrentAgentId(null);
+    setRoundtableText("");
+    setShowRoundtable(false);
   }, []);
 
   async function analyzeStock(ticker: string) {
@@ -140,6 +144,10 @@ export default function Home() {
           return next;
         });
         break;
+      case "report_chunk":
+        setShowRoundtable(true);
+        setRoundtableText(prev => prev + data.text);
+        break;
       case "complete":
         setResult(data);
         break;
@@ -215,6 +223,8 @@ export default function Home() {
           companyInfo={companyInfo}
           verdicts={streamVerdicts}
           currentAgentId={currentAgentId}
+          roundtableText={roundtableText}
+          showRoundtable={showRoundtable}
           language={language}
         />
       )}
@@ -282,12 +292,14 @@ function AgentPreview({ language }: { language: string }) {
   );
 }
 
-function StreamingView({ phase, phaseMessage, companyInfo, verdicts, currentAgentId, language }: {
+function StreamingView({ phase, phaseMessage, companyInfo, verdicts, currentAgentId, roundtableText, showRoundtable, language }: {
   phase: string;
   phaseMessage: string;
   companyInfo: any;
   verdicts: Map<string, { verdict?: AgentVerdict; loading: boolean }>;
   currentAgentId: string | null;
+  roundtableText: string;
+  showRoundtable: boolean;
   language: string;
 }) {
   return (
@@ -319,7 +331,6 @@ function StreamingView({ phase, phaseMessage, companyInfo, verdicts, currentAgen
               }`}
             >
               <div className="p-4">
-                {/* Agent header */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <span className={`text-xl ${isActive ? "animate-bounce" : ""}`}>{agent.emoji}</span>
@@ -337,7 +348,6 @@ function StreamingView({ phase, phaseMessage, companyInfo, verdicts, currentAgen
                   )}
                 </div>
 
-                {/* Content */}
                 {isActive && !isDone && (
                   <div className="flex items-center gap-2 text-xs text-[var(--color-accent-indigo)]">
                     <div className="flex gap-1">
@@ -375,6 +385,21 @@ function StreamingView({ phase, phaseMessage, companyInfo, verdicts, currentAgen
           );
         })}
       </div>
+
+      {/* Roundtable Streaming - Typewriter Effect */}
+      {showRoundtable && roundtableText && (
+        <div className="animate-fade-up mb-8">
+          <div className="text-xs text-[var(--color-text-dim)] uppercase tracking-widest mb-4">
+            🏛️ {language === "zh" ? "圆桌讨论（实时）" : "Roundtable Discussion (Live)"}
+          </div>
+          <div className="bg-[var(--color-bg-card)] border border-[var(--color-accent-indigo)]/30 rounded-2xl p-6 glow-blue">
+            <div className="text-sm text-[var(--color-text-secondary)] whitespace-pre-line leading-relaxed font-serif">
+              {roundtableText}
+              <span className="inline-block w-2 h-4 bg-[var(--color-accent-indigo)] animate-pulse ml-0.5 align-middle" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Phase Status */}
       <div className="text-center">

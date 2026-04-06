@@ -1,5 +1,6 @@
 """Report generation — combine agent verdicts into a final analysis."""
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -219,3 +220,115 @@ async def generate_report(
             roundtable_summary="Report narrative generation failed. See individual agent analyses above.",
             final_recommendation="Unable to generate final recommendation.",
         )
+
+
+async def generate_report_streaming(
+    company_name: str,
+    ticker: str,
+    latest_filing: str,
+    verdicts: list[AgentVerdict],
+    config: Config | None = None,
+    language: str = "en",
+):
+    """
+    Stream the roundtable discussion in real-time, then yield the final complete report.
+    
+    Yields dicts:
+    - {"type": "roundtable_chunk", "text": "..."} — one token at a time
+    - {"type": "complete", "report": <ArenaReport.to_dict()>} — final result
+    """
+    import litellm
+
+    config = config or Config()
+    raw_score = compute_raw_score(verdicts)
+
+    if raw_score >= 80:
+        sentiment = "Very Bullish 🐂🐂🐂"
+    elif raw_score >= 60:
+        sentiment = "Bullish 🐂🐂"
+    elif raw_score >= 40:
+        sentiment = "Neutral ⚖️"
+    elif raw_score >= 20:
+        sentiment = "Bearish 🐻🐻"
+    else:
+        sentiment = "Very Bearish 🐻🐻🐻"
+
+    # Build analyses text
+    analyses_text = ""
+    for v in verdicts:
+        analyses_text += f"\n--- {v.emoji} {v.agent_name} ({v.style}) ---\n"
+        analyses_text += f"Rating: {v.rating} (confidence: {v.confidence:.0%})\n"
+        analyses_text += f"Bull case: {json.dumps(v.bull_case)}\n"
+        analyses_text += f"Bear case: {json.dumps(v.bear_case)}\n"
+        analyses_text += f"Key insights: {json.dumps(v.key_insights)}\n"
+        analyses_text += f"Summary: {v.summary}\n"
+
+    prompt = REPORT_SYSTEM_PROMPT_ZH if language == "zh" else REPORT_SYSTEM_PROMPT_EN
+
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": f"Company: {company_name} ({ticker})\nLatest Filing: {latest_filing}\n\nAgent Analyses:{analyses_text}"},
+    ]
+
+    try:
+        # Step 1: First, get the structured JSON report (non-streaming)
+        kwargs = {
+            "model": config.litellm_model,
+            "messages": messages,
+            "temperature": 0.5,
+        }
+        if config.llm_api_key:
+            kwargs["api_key"] = config.llm_api_key
+        if config.effective_base_url:
+            kwargs["api_base"] = config.effective_base_url
+
+        response = await litellm.acompletion(**kwargs)
+        content = response.choices[0].message.content.strip()
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+
+        data = json.loads(content)
+        roundtable_text = data.get("roundtable_summary", "")
+
+        # Step 2: Stream the roundtable text token by token
+        # We split by characters for a typewriter effect (since we already have the full text)
+        chunk_size = 3  # characters per chunk
+        for i in range(0, len(roundtable_text), chunk_size):
+            chunk = roundtable_text[i:i + chunk_size]
+            yield {"type": "roundtable_chunk", "text": chunk}
+            await asyncio.sleep(0.01)  # Small delay for typewriter effect
+
+        # Step 3: Yield complete report
+        report = ArenaReport(
+            company_name=company_name,
+            ticker=ticker,
+            latest_filing=latest_filing,
+            agent_verdicts=verdicts,
+            title=data.get("title", f"{company_name} Arena Analysis"),
+            consensus=data.get("consensus", []),
+            debates=data.get("debates", []),
+            overall_score=data.get("overall_score", raw_score),
+            overall_sentiment=data.get("overall_sentiment", sentiment),
+            roundtable_summary=roundtable_text,
+            final_recommendation=data.get("final_recommendation", ""),
+        )
+
+        yield {"type": "complete", "report": report.to_dict()}
+
+    except Exception as e:
+        logger.error(f"Streaming report generation failed: {e}")
+
+        report = ArenaReport(
+            company_name=company_name,
+            ticker=ticker,
+            latest_filing=latest_filing,
+            agent_verdicts=verdicts,
+            title=f"{company_name} Arena Analysis",
+            overall_score=raw_score,
+            overall_sentiment=sentiment,
+            roundtable_summary="Report generation failed.",
+            final_recommendation="Unable to generate final recommendation.",
+        )
+        yield {"type": "complete", "report": report.to_dict()}
