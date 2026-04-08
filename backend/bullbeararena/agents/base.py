@@ -159,3 +159,108 @@ async def run_agent(
             key_insights={},
             summary="Analysis unavailable.",
         )
+
+
+@dataclass
+class AgentDebate:
+    """Structured debate response from an investor agent."""
+    agent_id: str
+    agent_name: str
+    emoji: str
+    challenges: list[dict]  # [{target, point, counter}]
+    concessions: list[dict]  # [{source, point, why}]
+    revised_rating: str | None
+    revised_confidence: float | None
+    final_statement: str
+
+    def to_dict(self) -> dict:
+        return {
+            "agent_id": self.agent_id,
+            "agent_name": self.agent_name,
+            "emoji": self.emoji,
+            "challenges": self.challenges,
+            "concessions": self.concessions,
+            "revised_rating": self.revised_rating,
+            "revised_confidence": self.revised_confidence,
+            "final_statement": self.final_statement,
+        }
+
+
+async def run_debate(
+    agent_id: str,
+    agent_verdict: AgentVerdict,
+    others_verdicts: list[AgentVerdict],
+    config: Config | None = None,
+) -> AgentDebate | None:
+    """
+    Run Round 2: Agent sees others' verdicts and debates them.
+
+    Returns AgentDebate with challenges, concessions, and optional revised rating.
+    """
+    from bullbeararena import AGENT_DISPLAY
+    from bullbeararena.agents.debate import DEBATE_PROMPT
+
+    config = config or Config()
+    info = AGENT_DISPLAY[agent_id]
+
+    # Build context: what others said
+    others_text = ""
+    for v in others_verdicts:
+        others_text += f"\n--- {v.emoji} {v.agent_name} ({v.style}) ---\n"
+        others_text += f"Rating: {v.rating} (confidence: {v.confidence:.0%})\n"
+        others_text += f"Summary: {v.summary}\n"
+        if v.bull_case:
+            others_text += f"Bull case: {'; '.join(v.bull_case[:2])}\n"
+        if v.bear_case:
+            others_text += f"Bear case: {'; '.join(v.bear_case[:2])}\n"
+        if v.key_insights:
+            first_key = next(iter(v.key_insights))
+            others_text += f"Key insight: {first_key} — {v.key_insights[first_key][:100]}\n"
+
+    my_position = (
+        f"YOUR position: {agent_verdict.rating} (confidence: {agent_verdict.confidence:.0%})\n"
+        f"Your summary: {agent_verdict.summary}\n"
+        f"Your bull case: {'; '.join(agent_verdict.bull_case[:2])}\n"
+        f"Your bear case: {'; '.join(agent_verdict.bear_case[:2])}"
+    )
+
+    messages = [
+        {"role": "system", "content": DEBATE_PROMPT},
+        {"role": "user", "content": f"Here is YOUR analysis:\n{my_position}\n\nHere is what OTHER investors said:\n{others_text}"},
+    ]
+
+    try:
+        kwargs = {
+            "model": config.litellm_model,
+            "messages": messages,
+            "temperature": 0.6,  # Higher temp for more spicy debate
+        }
+        if config.llm_api_key:
+            kwargs["api_key"] = config.llm_api_key
+        if config.effective_base_url:
+            kwargs["api_base"] = config.effective_base_url
+
+        response = await litellm.acompletion(**kwargs)
+        content = response.choices[0].message.content.strip()
+
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+
+        data = json.loads(content)
+
+        return AgentDebate(
+            agent_id=agent_id,
+            agent_name=info["name"],
+            emoji=info["emoji"],
+            challenges=data.get("challenges", []),
+            concessions=data.get("concessions", []),
+            revised_rating=data.get("revised_rating"),
+            revised_confidence=data.get("revised_confidence"),
+            final_statement=data.get("final_statement", ""),
+        )
+
+    except Exception as e:
+        logger.error(f"Debate round for {agent_id} failed: {e}")
+        return None

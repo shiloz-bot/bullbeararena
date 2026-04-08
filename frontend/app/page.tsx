@@ -50,6 +50,7 @@ export default function Home() {
   const [currentAgentId, setCurrentAgentId] = useState<string | null>(null);
   const [roundtableText, setRoundtableText] = useState("");
   const [showRoundtable, setShowRoundtable] = useState(false);
+  const [debates, setDebates] = useState<Map<string, any>>(new Map());
 
   const resetState = useCallback(() => {
     setLoading(true);
@@ -62,6 +63,7 @@ export default function Home() {
     setCurrentAgentId(null);
     setRoundtableText("");
     setShowRoundtable(false);
+    setDebates(new Map());
   }, []);
 
   async function analyzeStock(ticker: string) {
@@ -141,6 +143,13 @@ export default function Home() {
         setStreamVerdicts(prev => {
           const next = new Map(prev);
           next.set(data.agent_id, { loading: false });
+          return next;
+        });
+        break;
+      case "agent_debate":
+        setDebates(prev => {
+          const next = new Map(prev);
+          next.set(data.agent_id, data.debate);
           return next;
         });
         break;
@@ -225,6 +234,7 @@ export default function Home() {
           currentAgentId={currentAgentId}
           roundtableText={roundtableText}
           showRoundtable={showRoundtable}
+          debates={debates}
           language={language}
         />
       )}
@@ -297,7 +307,7 @@ function AgentPreview({ language }: { language: string }) {
   );
 }
 
-function StreamingView({ phase, phaseMessage, companyInfo, verdicts, currentAgentId, roundtableText, showRoundtable, language }: {
+function StreamingView({ phase, phaseMessage, companyInfo, verdicts, currentAgentId, roundtableText, showRoundtable, debates, language }: {
   phase: string;
   phaseMessage: string;
   companyInfo: any;
@@ -305,6 +315,7 @@ function StreamingView({ phase, phaseMessage, companyInfo, verdicts, currentAgen
   currentAgentId: string | null;
   roundtableText: string;
   showRoundtable: boolean;
+  debates: Map<string, any>;
   language: string;
 }) {
   return (
@@ -390,6 +401,52 @@ function StreamingView({ phase, phaseMessage, companyInfo, verdicts, currentAgen
           );
         })}
       </div>
+
+      {/* Debate Round — Live clashes */}
+      {debates.size > 0 && (
+        <div className="animate-fade-up mb-8">
+          <div className="text-xs text-[var(--color-text-dim)] uppercase tracking-widest mb-4">
+            ⚔️ {language === "zh" ? "激烈辩论中" : "Cross-Examination"}
+          </div>
+          <div className="space-y-3">
+            {Array.from(debates.entries()).map(([agentId, debate]) => {
+              if (!debate?.challenges?.length && !debate?.concessions?.length) return null;
+              return (
+                <div key={agentId} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">{debate.emoji}</span>
+                    <span className="text-xs font-semibold">{debate.agent_name}</span>
+                    <span className="text-[10px] text-[var(--color-accent-indigo)]">
+                      {language === "zh" ? "回应：" : "responds"}
+                    </span>
+                  </div>
+                  {debate.challenges?.map((c: any, i: number) => (
+                    <div key={i} className="mb-2 pl-3 border-l-2 border-[var(--color-bear)]/40">
+                      <div className="text-[10px] text-[var(--color-bear)] font-semibold mb-0.5">
+                        🎯 → {c.target}
+                      </div>
+                      <div className="text-xs text-[var(--color-text-secondary)]">{c.counter}</div>
+                    </div>
+                  ))}
+                  {debate.concessions?.map((c: any, i: number) => (
+                    <div key={i} className="mb-2 pl-3 border-l-2 border-[var(--color-bull)]/40">
+                      <div className="text-[10px] text-[var(--color-bull)] font-semibold mb-0.5">
+                        🤝 ← {c.source}
+                      </div>
+                      <div className="text-xs text-[var(--color-text-secondary)]">{c.why}</div>
+                    </div>
+                  ))}
+                  {debate.final_statement && (
+                    <div className="mt-2 text-xs text-[var(--color-text-dim)] italic border-t border-[var(--color-border)]/40 pt-2">
+                      "{debate.final_statement}"
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Roundtable Streaming - Typewriter Effect */}
       {showRoundtable && roundtableText && (

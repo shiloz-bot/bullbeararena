@@ -187,6 +187,12 @@ export default function ArenaAnalysis({ result, language }: Props) {
                     </div>
                   ))}
                 </div>
+                {d.clash && (
+                  <div className="mb-3 px-3 py-2 bg-[var(--color-bear-dim)]/20 border-l-2 border-[var(--color-bear)]/50 rounded-r-lg">
+                    <div className="text-[10px] text-[var(--color-bear)] font-semibold mb-0.5">💥 Clash</div>
+                    <div className="text-xs text-[var(--color-text-secondary)]">{d.clash}</div>
+                  </div>
+                )}
                 <div className="text-xs text-[var(--color-text-dim)] italic border-t border-[var(--color-border)]/40 pt-3">
                   💡 {d.verdict}
                 </div>

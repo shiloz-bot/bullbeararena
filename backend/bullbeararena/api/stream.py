@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from bullbeararena.agents.orchestrator import run_agent, format_financial_data, LANGUAGE_SUFFIX
 from bullbeararena.agents.prompts import AGENT_PROMPTS
-from bullbeararena.agents.base import AgentVerdict
+from bullbeararena.agents.base import AgentVerdict, run_debate
 from bullbeararena.data.metrics import compute_financials, compute_trends
 from bullbeararena.data.sec_client import SECEdgarClient
 from bullbeararena.report.generator import generate_report
@@ -126,6 +126,37 @@ async def _stream_analysis(ticker: str, language: str = "en", agent_ids: Optiona
                     "error": "Analysis failed",
                 })
 
+    # Phase 3.5: Debate round — agents respond to each other
+    debate_results: list[dict] = []
+    if len(verdicts) >= 2:
+        yield _sse("status", {
+            "phase": "debate",
+            "message": "Investors are debating each other's positions..." if language != "zh" else "投资大师们正在互相辩论...",
+        })
+
+        async def _run_debate_one(agent_id: str, verdict: AgentVerdict) -> tuple[str, Any]:
+            others = [v for v in verdicts if v.agent_id != agent_id]
+            debate = await run_debate(agent_id, verdict, others, config)
+            return (agent_id, debate)
+
+        debate_tasks = {
+            v.agent_id: asyncio.create_task(_run_debate_one(v.agent_id, v))
+            for v in verdicts
+        }
+        debate_pending = set(debate_tasks.values())
+
+        while debate_pending:
+            done, debate_pending = await asyncio.wait(debate_pending, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                agent_id, debate = task.result()
+                if debate:
+                    debate_dict = debate.to_dict()
+                    debate_results.append(debate_dict)
+                    yield _sse("agent_debate", {
+                        "agent_id": agent_id,
+                        "debate": debate_dict,
+                    })
+
     # Phase 4: Generating report (streaming)
     yield _sse("status", {
         "phase": "report",
@@ -148,6 +179,7 @@ async def _stream_analysis(ticker: str, language: str = "en", agent_ids: Optiona
         verdicts=verdicts,
         config=config,
         language=language,
+        debate_data=debate_results if debate_results else None,
     ):
         if chunk.get("type") == "roundtable_chunk":
             report_chunks.append(chunk["text"])
