@@ -79,6 +79,29 @@ def format_financial_data(snapshot_dict: dict[str, Any]) -> str:
             suffix = "%" if key in ("roe", "roa") else ""
             lines.append(f"  {label}: {val}{suffix}")
 
+    # Add trend data if available
+    trend_signals = snapshot_dict.get("trend_signals", [])
+    trend_table = snapshot_dict.get("trend_table", [])
+    if trend_signals:
+        lines.append("")
+        lines.append("=== TREND ANALYSIS (Multi-Year) ===")
+        for signal in trend_signals:
+            lines.append(f"  {signal}")
+    if trend_table:
+        lines.append("")
+        lines.append("=== HISTORICAL FINANCIAL DATA ===")
+        # Header
+        lines.append(f"  {'Year':<6} {'Revenue':>12} {'Net Income':>12} {'FCF':>12} {'ROE':>8} {'D/E':>6} {'GM':>6}")
+        lines.append(f"  {'----':<6} {'--------':>12} {'----------':>12} {'---':>12} {'---':>8} {'---':>6} {'---':>6}")
+        for row in trend_table:
+            rev_str = _fmt(row.get("revenue")) if row.get("revenue") else "N/A"
+            ni_str = _fmt(row.get("net_income")) if row.get("net_income") else "N/A"
+            fcf_str = _fmt(row.get("free_cash_flow")) if row.get("free_cash_flow") else "N/A"
+            roe_str = f"{row['roe']:.1f}%" if row.get("roe") else "N/A"
+            de_str = f"{row['debt_to_equity']:.2f}" if row.get("debt_to_equity") else "N/A"
+            gm_str = f"{row['gross_margin']:.1f}%" if row.get("gross_margin") else "N/A"
+            lines.append(f"  {str(row['year']):<6} {rev_str:>12} {ni_str:>12} {fcf_str:>12} {roe_str:>8} {de_str:>6} {gm_str:>6}")
+
     return "\n".join(lines)
 
 

@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from bullbeararena.agents.orchestrator import run_agent, format_financial_data, LANGUAGE_SUFFIX
 from bullbeararena.agents.prompts import AGENT_PROMPTS
 from bullbeararena.agents.base import AgentVerdict
-from bullbeararena.data.metrics import compute_financials
+from bullbeararena.data.metrics import compute_financials, compute_trends
 from bullbeararena.data.sec_client import SECEdgarClient
 from bullbeararena.report.generator import generate_report
 from bullbeararena.config import Config
@@ -65,6 +65,10 @@ async def _stream_analysis(ticker: str, language: str = "en", agent_ids: Optiona
         ticker=financials["ticker"],
         latest_filings=financials["latest_filings"],
     )
+    trends = compute_trends(financials["facts"])
+    snap_dict = snapshot.to_dict()
+    snap_dict["trend_signals"] = trends["trend_signals"]
+    snap_dict["trend_table"] = trends["trend_table"]
 
     yield _sse("metrics", snapshot.to_dict())
 
@@ -73,7 +77,7 @@ async def _stream_analysis(ticker: str, language: str = "en", agent_ids: Optiona
         agent_ids = list(AGENT_PROMPTS.keys())[:5]
 
     valid_ids = [aid for aid in agent_ids if aid in AGENT_PROMPTS]
-    formatted_data = format_financial_data(snapshot.to_dict())
+    formatted_data = format_financial_data(snap_dict)
     lang_suffix = LANGUAGE_SUFFIX.get(language, "")
 
     # Notify all agents starting

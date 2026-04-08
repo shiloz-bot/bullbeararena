@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from bullbeararena.agents.orchestrator import run_all_agents
-from bullbeararena.data.metrics import compute_financials
+from bullbeararena.data.metrics import compute_financials, compute_trends
 from bullbeararena.data.sec_client import SECEdgarClient
 from bullbeararena.report.generator import generate_report
 from bullbeararena.config import Config
@@ -76,17 +76,21 @@ async def analyze_stock(request: AnalyzeRequest):
         client = SECEdgarClient(config)
         financials = await client.get_financials(request.ticker)
 
-        # Step 2: Compute metrics
+        # Step 2: Compute metrics + trends
         snapshot = compute_financials(
             facts_data=financials["facts"],
             company_name=financials["company_name"],
             ticker=financials["ticker"],
             latest_filings=financials["latest_filings"],
         )
+        trends = compute_trends(financials["facts"])
+        snap_dict = snapshot.to_dict()
+        snap_dict["trend_signals"] = trends["trend_signals"]
+        snap_dict["trend_table"] = trends["trend_table"]
 
         # Step 3: Run investor agents
         verdicts = await run_all_agents(
-            financial_data=snapshot.to_dict(),
+            financial_data=snap_dict,
             agent_ids=request.agents,
             config=config,
             language=request.language or "en",

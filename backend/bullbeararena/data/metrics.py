@@ -222,3 +222,129 @@ def compute_financials(facts_data: dict, company_name: str = "", ticker: str = "
             snap.peg_hint = "High (slow/no growth)"
 
     return snap
+
+
+def compute_trends(facts_data: dict, years: int = 4) -> dict:
+    """
+    Compute multi-year trends for key metrics.
+
+    Returns a dict with:
+    - trend_table: list of {year, revenue, net_income, fcf, roe, debt_to_equity, gross_margin} dicts
+    - trend_signals: list of human-readable trend observations
+    """
+    def _annual(data):
+        from collections import defaultdict
+        by_period = defaultdict(list)
+        for d in data:
+            key = (d.get("fiscal_year"), d.get("end_date"))
+            by_period[key].append(d)
+        by_year = defaultdict(list)
+        for (fy, end), entries in by_period.items():
+            if fy is None:
+                continue
+            best = max(entries, key=lambda x: abs(x["value"]))
+            by_year[fy].append(best)
+        result = []
+        for fy in sorted(by_year.keys(), reverse=True):
+            best = max(by_year[fy], key=lambda x: abs(x["value"]))
+            result.append(best)
+        return result
+
+    def _get_latest_value(tag: str) -> list:
+        data = extract_metric({"facts": facts_data}, tag=tag)
+        return _annual(data) if data else []
+
+    def _pct(a, b):
+        if a is None or b is None or b == 0:
+            return None
+        return round(a / b * 100, 2)
+
+    rev = _get_latest_value("Revenues") or _get_latest_value("SalesRevenueNet") or _get_latest_value("RevenueFromContractWithCustomerExcludingAssessedTax")
+    ni = _get_latest_value("NetIncomeLoss")
+    ocf = _get_latest_value("NetCashProvidedByUsedInOperatingActivities") or _get_latest_value("CashFlowFromOperatingActivitiesContinuingOperations")
+    capex = _get_latest_value("PaymentsToAcquirePropertyPlantAndEquipment") or _get_latest_value("CapitalExpenditures")
+    se = _get_latest_value("StockholdersEquity")
+    tl = _get_latest_value("Liabilities")
+    gp = _get_latest_value("GrossProfit")
+
+    # Build year-indexed maps
+    def _to_map(data):
+        return {d["fiscal_year"]: d["value"] for d in data if d.get("fiscal_year")}
+
+    rev_map = _to_map(rev)
+    ni_map = _to_map(ni)
+    ocf_map = _to_map(ocf)
+    capex_map = _to_map(capex)
+    se_map = _to_map(se)
+    tl_map = _to_map(tl)
+    gp_map = _to_map(gp)
+
+    all_years = sorted(set(rev_map.keys()) | set(ni_map.keys()), reverse=True)[:years]
+
+    # Build trend table
+    table = []
+    for fy in all_years:
+        r = rev_map.get(fy)
+        n = ni_map.get(fy)
+        o = ocf_map.get(fy)
+        c = capex_map.get(fy)
+        fcf = (o - abs(c)) if (o is not None and c is not None) else None
+        equity = se_map.get(fy)
+        liab = tl_map.get(fy)
+        gross = gp_map.get(fy)
+
+        row = {
+            "year": fy,
+            "revenue": r,
+            "net_income": n,
+            "free_cash_flow": fcf,
+            "roe": _pct(n, equity),
+            "debt_to_equity": round(liab / equity, 2) if (equity and liab and equity != 0) else None,
+            "gross_margin": _pct(gross, r),
+        }
+        table.append(row)
+
+    # Generate trend signals
+    signals = []
+    if len(table) >= 2:
+        # Revenue trend
+        revs = [r["revenue"] for r in table if r["revenue"] is not None]
+        if len(revs) >= 2:
+            if all(revs[i] > revs[i+1] for i in range(len(revs)-1)):
+                signals.append("📈 Revenue: Consistent growth streak")
+            elif all(revs[i] < revs[i+1] for i in range(len(revs)-1)):
+                signals.append("📉 Revenue: Consistent decline streak")
+            else:
+                signals.append("↔️ Revenue: Fluctuating")
+
+        # Net income trend
+        nis = [r["net_income"] for r in table if r["net_income"] is not None]
+        if len(nis) >= 2:
+            growth = round((nis[0] - nis[-1]) / abs(nis[-1]) * 100, 1) if nis[-1] != 0 else None
+            if growth is not None:
+                if growth > 20:
+                    signals.append(f"📈 Net Income: +{growth}% over {len(nis)} years")
+                elif growth < -20:
+                    signals.append(f"📉 Net Income: {growth}% over {len(nis)} years")
+
+        # Margin trend
+        gms = [r["gross_margin"] for r in table if r["gross_margin"] is not None]
+        if len(gms) >= 2:
+            diff = gms[0] - gms[-1]
+            if diff > 5:
+                signals.append(f"📈 Gross Margin: Expanded {diff:.1f}pp over {len(gms)} years")
+            elif diff < -5:
+                signals.append(f"📉 Gross Margin: Contracted {abs(diff):.1f}pp over {len(gms)} years")
+
+        # Leverage trend
+        des = [r["debt_to_equity"] for r in table if r["debt_to_equity"] is not None]
+        if len(des) >= 2:
+            if des[0] > des[-1] + 0.5:
+                signals.append(f"⚠️ Leverage: D/E increased from {des[-1]:.2f} to {des[0]:.2f}")
+            elif des[0] < des[-1] - 0.5:
+                signals.append(f"✅ Leverage: D/E decreased from {des[-1]:.2f} to {des[0]:.2f}")
+
+    return {
+        "trend_table": table,
+        "trend_signals": signals,
+    }

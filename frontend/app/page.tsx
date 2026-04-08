@@ -271,6 +271,11 @@ const AGENTS = [
   { id: "dalio", name: "Ray Dalio", emoji: "🧑", style: "Macro Cycle", color: "#06b6d4" },
   { id: "burry", name: "Michael Burry", emoji: "🧐", style: "Deep Value", color: "#ef4444" },
   { id: "lynch", name: "Peter Lynch", emoji: "👨", style: "Pragmatic Growth", color: "#f59e0b" },
+  { id: "soros", name: "George Soros", emoji: "🦊", style: "Reflexivity", color: "#ec4899" },
+  { id: "graham", name: "Ben Graham", emoji: "🐻", style: "Extreme Conservative", color: "#78716c" },
+  { id: "druckenmiller", name: "S. Druckenmiller", emoji: "🐂", style: "Asymmetric Risk", color: "#14b8a6" },
+  { id: "munger", name: "Charlie Munger", emoji: "🎩", style: "Mental Models", color: "#a3a3a3" },
+  { id: "taleb", name: "Nassim Taleb", emoji: "🎲", style: "Black Swan", color: "#dc2626" },
 ];
 
 function AgentPreview({ language }: { language: string }) {
@@ -279,12 +284,12 @@ function AgentPreview({ language }: { language: string }) {
       <p className="text-xs text-[var(--color-text-dim)] uppercase tracking-widest mb-6">
         {language === "zh" ? "投资大师阵容" : "The Panel"}
       </p>
-      <div className="flex flex-wrap justify-center gap-4">
+      <div className="flex flex-wrap justify-center gap-3">
         {AGENTS.map((a) => (
-          <div key={a.id} className="flex flex-col items-center gap-2 px-4 py-3 rounded-xl bg-[var(--color-bg-card)]/50 border border-[var(--color-border)]/50 min-w-[120px]">
-            <span className="text-3xl">{a.emoji}</span>
-            <span className="text-xs font-medium text-[var(--color-text-primary)]">{a.name}</span>
-            <span className="text-[10px] text-[var(--color-text-dim)]" style={{ color: a.color }}>{a.style}</span>
+          <div key={a.id} className="flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--color-bg-card)]/50 border border-[var(--color-border)]/50 min-w-[100px]">
+            <span className="text-2xl">{a.emoji}</span>
+            <span className="text-[10px] font-medium text-[var(--color-text-primary)]">{a.name}</span>
+            <span className="text-[9px] text-[var(--color-text-dim)]" style={{ color: a.color }}>{a.style}</span>
           </div>
         ))}
       </div>

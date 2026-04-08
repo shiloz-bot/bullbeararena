@@ -25,7 +25,9 @@ AGENT_DISPLAY = {
     "lynch": {"name": "Peter Lynch", "emoji": "👨", "style": "Pragmatic Growth"},
     "soros": {"name": "George Soros", "emoji": "🦊", "style": "Reflexivity / Macro Speculation"},
     "graham": {"name": "Ben Graham", "emoji": "🐻", "style": "Extreme Conservatism"},
-    "druckenmiller": {"name": "Stanley Druckenmiller", "emoji": "🐂", "style": "Asymmetric Risk"},
+    "druckenmiller": {"name": "Stanley Druckenmiller", "emoji": "🐂", "style": "Asymmetric Risk / Trend"},
+    "munger": {"name": "Charlie Munger", "emoji": "🎩", "style": "Inversion / Mental Models"},
+    "taleb": {"name": "Nassim Taleb", "emoji": "🎲", "style": "Black Swan / Antifragile"},
 }
 
 RATINGS = ["Strong Buy", "Buy", "Hold", "Sell", "Strong Sell"]
